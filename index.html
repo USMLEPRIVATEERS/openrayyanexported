@@ -644,8 +644,8 @@
             if (!inclusionMatch) return 'unclear';
             
             const inclusionData = inclusionMatch[1];
-            const included = (inclusionData.match(/=>"TRUE"/g) || []).length;
-            const excluded = (inclusionData.match(/=>"FALSE"/g) || []).length;
+            const included = (inclusionData.match(/=>"Include"/g) || []).length;
+            const excluded = (inclusionData.match(/=>"Exclude"/g) || []).length;
             
             if (included > excluded) return 'included';
             if (excluded > included) return 'excluded';
