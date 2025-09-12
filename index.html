@@ -644,8 +644,8 @@
             if (!inclusionMatch) return 'unclear';
             
             const inclusionData = inclusionMatch[1];
-            const included = (inclusionData.match(/=>"Included"/g) || []).length;
-            const excluded = (inclusionData.match(/=>"Excluded"/g) || []).length;
+            const included = (inclusionData.match(/=>"TRUE"/g) || []).length;
+            const excluded = (inclusionData.match(/=>"FALSE"/g) || []).length;
             
             if (included > excluded) return 'included';
             if (excluded > included) return 'excluded';
@@ -729,11 +729,11 @@
             highlighted = highlighted.replace(/\b\d+\s*-\s*\d+\b/g, '<span class="highlight-number">$&</span>');
             
             // Highlight section keywords
-            const sectionKeywords = {
-                methods: /\b(method|methodology|design|study design|approach|procedure|technique)\b/gi,
-                results: /\b(result|finding|outcome|data|analysis|statistic|significant)\b/gi,
-                conclusion: /\b(conclusion|summary|implication|recommend|suggest|demonstrate|show)\b/gi
-            };
+const sectionKeywords = {
+  methods: /\b(method|methods|methodology|design|study design|approach|procedure|procedures|technique|techniques|materials|experimental|protocol|protocols|framework|process|implementation|setup|experiment|experiments)\b/gi,
+  results: /\b(result|results|finding|findings|outcome|outcomes|data|analysis|analyses|statistic|statistics|significant|observation|observations|measurement|measurements|evidence|performance|evaluation|yield)\b/gi,
+  conclusion: /\b(conclusion|conclusions|summary|discussion|interpretation|implication|implications|recommend|recommendation|recommendations|suggest|suggestion|suggestions|demonstrate|show|future work|limitation|limitations|remark|remarks|conclude|inferred)\b/gi
+};
             
             Object.entries(sectionKeywords).forEach(([section, regex]) => {
                 highlighted = highlighted.replace(regex, `<span class="highlight-${section}">$&</span>`);
@@ -789,16 +789,13 @@
 
             // Prepare data for export
             const exportData = articlesData.map(article => ({
+'DOI': article.doi ? `https://doi.org/${article.doi}` : '',
+                'URL': article.url || '',
                 'Title': article.title || '',
                 'Authors': article.authors || '',
                 'Year': article.year || '',
-                'Journal': article.journal || '',
-                'DOI': article.doi || '',
-                'Status': article.inclusionStatus || '',
+                'Included?': article.inclusionStatus || '',
                 'Exclusion Reason': article.exclusionReason || '',
-                'Abstract': article.abstract || '',
-                'Keywords': article.keywords || '',
-                'URL': article.url || ''
             }));
 
             // Create workbook
