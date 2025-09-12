@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rayyan CSV Processor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .drop-zone {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 60px 20px;
+            text-align: center;
+            margin: 30px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #764ba2;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            transform: translateY(-2px);
+        }
+
+        .drop-zone i {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .drop-zone h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 1.5rem;
+        }
+
+        .drop-zone p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 12px 45px 12px 15px;
+            border: 2px solid #dee2e6;
+            border-radius: 25px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e6cf 100%);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(86, 171, 47, 0.3);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .table-container {
+            overflow-x: auto;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        th {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .included {
+            background-color: #d4edda !important;
+        }
+
+        .excluded {
+            background-color: #f8d7da !important;
+        }
+
+        .title-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .authors-cell {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .badge-included {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge-excluded {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge-unclear {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 500;
+        }
+
+        .close {
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.3s ease;
+        }
+
+        .close:hover {
+            opacity: 0.7;
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .abstract-text {
+            line-height: 1.8;
+            font-size: 1.1rem;
+            color: #333;
+        }
+
+        .highlight-number {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .highlight-methods {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        .highlight-results {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        .highlight-conclusion {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1px 4px;
+            border-radius: 3px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #667eea;
+            border-top: 3px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #dee2e6;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .stats {
+                justify-content: center;
+            }
+
+            .filter-buttons {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+
+            .modal-body {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Rayyan CSV Processor</h1>
+            <p>Upload your Rayyan ZIP export to analyze and manage your systematic review data</p>
+        </div>
+
+        <div id="dropZone" class="drop-zone">
+            <div style="font-size: 4rem; margin-bottom: 20px;">📁</div>
+            <h3>Drop your Rayyan ZIP file here</h3>
+            <p>Or click to browse files</p>
+            <input type="file" id="fileInput" accept=".zip" style="display: none;">
+        </div>
+
+        <div id="controls" class="controls hidden">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search articles by title, author, or keywords...">
+                <span class="search-icon">🔍</span>
+            </div>
+            
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">All Articles</button>
+                <button class="filter-btn" data-filter="included">My Included</button>
+                <button class="filter-btn" data-filter="excluded">My Excluded</button>
+                <button class="filter-btn" data-filter="unclear">Not Reviewed</button>
+            </div>
+
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalCount">0</div>
+                    <div class="stat-label">Total</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="includedCount">0</div>
+                    <div class="stat-label">Included</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="excludedCount">0</div>
+                    <div class="stat-label">Excluded</div>
+                </div>
+            </div>
+
+            <button id="downloadBtn" class="btn btn-success">
+                📥 Download XLSX
+            </button>
+        </div>
+
+        <div id="tableContainer" class="table-container hidden">
+            <table id="articlesTable">
+                <thead>
+                    <tr>
+                        <th>DOI</th>
+                        <th>Title</th>
+                        <th>Authors</th>
+                        <th>Year</th>
+                        <th>Status</th>
+                        <th>Exclusion Reason</th>
+                        <th>Abstract</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            Processing your file...
+        </div>
+
+        <div id="noData" class="no-data hidden">
+            No articles match your current filters.
+        </div>
+    </div>
+
+    <!-- Abstract Modal -->
+    <div id="abstractModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Article Abstract</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="modalAbstract" class="abstract-text"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let articlesData = [];
+        let filteredData = [];
+        let currentFilter = 'all';
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const controls = document.getElementById('controls');
+        const tableContainer = document.getElementById('tableContainer');
+        const loading = document.getElementById('loading');
+        const noData = document.getElementById('noData');
+        const searchInput = document.getElementById('searchInput');
+        const tableBody = document.getElementById('tableBody');
+        const modal = document.getElementById('abstractModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalAbstract = document.getElementById('modalAbstract');
+        const downloadBtn = document.getElementById('downloadBtn');
+
+        // Stats elements
+        const totalCount = document.getElementById('totalCount');
+        const includedCount = document.getElementById('includedCount');
+        const excludedCount = document.getElementById('excludedCount');
+
+        // File handling
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', handleDragOver);
+        dropZone.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Search and filter
+        searchInput.addEventListener('input', handleSearch);
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', handleFilter);
+        });
+
+        // Modal handling
+        document.querySelector('.close').addEventListener('click', closeModal);
+        window.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // Download button
+        downloadBtn.addEventListener('click', downloadXLSX);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file);
+            }
+        }
+
+        async function processFile(file) {
+            if (!file.name.toLowerCase().endsWith('.zip')) {
+                alert('Please select a ZIP file.');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const csvFile = zip.file('articles.csv');
+                
+                if (!csvFile) {
+                    alert('No articles.csv file found in the ZIP archive.');
+                    hideLoading();
+                    return;
+                }
+
+                const csvContent = await csvFile.async('string');
+                parseCSV(csvContent);
+            } catch (error) {
+                console.error('Error processing file:', error);
+                alert('Error processing the ZIP file. Please make sure it\'s a valid Rayyan export.');
+                hideLoading();
+            }
+        }
+
+        function parseCSV(csvContent) {
+            Papa.parse(csvContent, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true,
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        console.warn('CSV parsing warnings:', results.errors);
+                    }
+                    
+                    articlesData = results.data.map(row => ({
+                        ...row,
+                        inclusionStatus: parseInclusionStatus(row.notes || ''),
+                        exclusionReason: parseExclusionReason(row.notes || '')
+                    }));
+
+                    filteredData = [...articlesData];
+                    displayData();
+                    updateStats();
+                    hideLoading();
+                    showControls();
+                }
+            });
+        }
+
+        function parseInclusionStatus(notes) {
+            if (!notes || typeof notes !== 'string') return 'unclear';
+            
+            const inclusionMatch = notes.match(/RAYYAN-INCLUSION:\s*\{([^}]+)\}/);
+            if (!inclusionMatch) return 'unclear';
+            
+            const inclusionData = inclusionMatch[1];
+            const included = (inclusionData.match(/=>"Included"/g) || []).length;
+            const excluded = (inclusionData.match(/=>"Excluded"/g) || []).length;
+            
+            if (included > excluded) return 'included';
+            if (excluded > included) return 'excluded';
+            return 'unclear';
+        }
+
+        function parseExclusionReason(notes) {
+            if (!notes || typeof notes !== 'string') return '';
+            
+            // Look for common exclusion patterns
+            const reasonMatch = notes.match(/reason[:\s]*([^,}\n]+)/i);
+            if (reasonMatch) return reasonMatch[1].trim();
+            
+            // If excluded but no specific reason found
+            if (notes.includes('Excluded')) return 'Not specified';
+            
+            return '';
+        }
+
+        function displayData() {
+            tableBody.innerHTML = '';
+            
+            if (filteredData.length === 0) {
+                showNoData();
+                return;
+            }
+
+            hideNoData();
+            
+            filteredData.forEach(article => {
+                const row = createTableRow(article);
+                tableBody.appendChild(row);
+            });
+        }
+
+        function createTableRow(article) {
+            const row = document.createElement('tr');
+            row.className = article.inclusionStatus === 'included' ? 'included' : 
+                           article.inclusionStatus === 'excluded' ? 'excluded' : '';
+
+            row.innerHTML = `
+                <td>
+                    ${article.doi ? 
+                        `<a href="https://doi.org/${article.doi}" target="_blank" class="btn btn-primary btn-small">📄 DOI</a>` : 
+                        '<span style="color: #999;">No DOI</span>'
+                    }
+                </td>
+                <td class="title-cell" title="${escapeHtml(article.title || 'No title')}">${escapeHtml(article.title || 'No title')}</td>
+                <td class="authors-cell" title="${escapeHtml(article.authors || 'No authors')}">${escapeHtml(article.authors || 'No authors')}</td>
+                <td>${article.year || 'N/A'}</td>
+                <td>
+                    <span class="status-badge badge-${article.inclusionStatus}">
+                        ${article.inclusionStatus.charAt(0).toUpperCase() + article.inclusionStatus.slice(1)}
+                    </span>
+                </td>
+                <td>${escapeHtml(article.exclusionReason || '')}</td>
+                <td>
+                    ${article.abstract ? 
+                        `<button class="btn btn-primary btn-small" onclick="openAbstract('${escapeHtml(article.title || 'No title')}', '${escapeHtml(article.abstract)}')">👁️ View</button>` : 
+                        '<span style="color: #999;">No abstract</span>'
+                    }
+                </td>
+            `;
+
+            return row;
+        }
+
+        function openAbstract(title, abstract) {
+            modalTitle.textContent = title;
+            modalAbstract.innerHTML = highlightAbstract(abstract);
+            modal.style.display = 'block';
+        }
+
+        function highlightAbstract(text) {
+            if (!text) return '';
+            
+            let highlighted = text;
+            
+            // Highlight numbers (including percentages, decimals, and ranges)
+            highlighted = highlighted.replace(/\b\d+\.?\d*%?\b/g, '<span class="highlight-number">$&</span>');
+            highlighted = highlighted.replace(/\b\d+\s*-\s*\d+\b/g, '<span class="highlight-number">$&</span>');
+            
+            // Highlight section keywords
+            const sectionKeywords = {
+                methods: /\b(method|methodology|design|study design|approach|procedure|technique)\b/gi,
+                results: /\b(result|finding|outcome|data|analysis|statistic|significant)\b/gi,
+                conclusion: /\b(conclusion|summary|implication|recommend|suggest|demonstrate|show)\b/gi
+            };
+            
+            Object.entries(sectionKeywords).forEach(([section, regex]) => {
+                highlighted = highlighted.replace(regex, `<span class="highlight-${section}">$&</span>`);
+            });
+            
+            return highlighted;
+        }
+
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        function handleSearch() {
+            const query = searchInput.value.toLowerCase();
+            filteredData = articlesData.filter(article => {
+                if (currentFilter !== 'all' && article.inclusionStatus !== currentFilter) {
+                    return false;
+                }
+                
+                const searchFields = [
+                    article.title || '',
+                    article.authors || '',
+                    article.keywords || '',
+                    article.abstract || ''
+                ].join(' ').toLowerCase();
+                
+                return searchFields.includes(query);
+            });
+            
+            displayData();
+            updateStats();
+        }
+
+        function handleFilter(e) {
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            
+            currentFilter = e.target.dataset.filter;
+            handleSearch(); // This will apply both search and filter
+        }
+
+        function updateStats() {
+            totalCount.textContent = filteredData.length;
+            includedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'included').length;
+            excludedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'excluded').length;
+        }
+
+        function downloadXLSX() {
+            if (articlesData.length === 0) {
+                alert('No data to download');
+                return;
+            }
+
+            // Prepare data for export
+            const exportData = articlesData.map(article => ({
+                'Title': article.title || '',
+                'Authors': article.authors || '',
+                'Year': article.year || '',
+                'Journal': article.journal || '',
+                'DOI': article.doi || '',
+                'Status': article.inclusionStatus || '',
+                'Exclusion Reason': article.exclusionReason || '',
+                'Abstract': article.abstract || '',
+                'Keywords': article.keywords || '',
+                'URL': article.url || ''
+            }));
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // Auto-size columns
+            const colWidths = [];
+            Object.keys(exportData[0] || {}).forEach((key, i) => {
+                const maxLength = Math.max(
+                    key.length,
+                    ...exportData.map(row => String(row[key] || '').length)
+                );
+                colWidths[i] = { wch: Math.min(maxLength + 2, 50) };
+            });
+            ws['!cols'] = colWidths;
+
+            XLSX.utils.book_append_sheet(wb, ws, "Articles");
+            
+            // Download file
+            const fileName = `rayyan_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showLoading() {
+            loading.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            controls.classList.add('hidden');
+            tableContainer.classList.add('hidden');
+            noData.classList.add('hidden');
+        }
+
+        function hideLoading() {
+            loading.classList.add('hidden');
+        }
+
+        function showControls() {
+            controls.classList.remove('hidden');
+            tableContainer.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+        }
+
+        function showNoData() {
+            noData.classList.remove('hidden');
+            tableContainer.classList.add('hidden');
+        }
+
+        function hideNoData() {
+            noData.classList.add('hidden');
+            tableContainer.classList.remove('hidden');
+        }
+
+        // Make openAbstract available globally
+        window.openAbstract = openAbstract;
+    </script>
+</body>
+</html>
