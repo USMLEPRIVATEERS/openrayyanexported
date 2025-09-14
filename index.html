@@ -241,12 +241,12 @@
             font-weight: 500;
         }
 
-        .badge-included {
+        .badge-true {
             background-color: #d4edda;
             color: #155724;
         }
 
-        .badge-excluded {
+        .badge-false {
             background-color: #f8d7da;
             color: #721c24;
         }
@@ -254,6 +254,63 @@
         .badge-unclear {
             background-color: #fff3cd;
             color: #856404;
+        }
+
+        .status-selector {
+            padding: 6px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 20px;
+            background: white;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .status-selector:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .status-selector.true {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .status-selector.false {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .status-selector.unclear {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+            color: #856404;
+        }
+
+        .download-section {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-right: 10px;
+        }
+
+        .checkbox-container input[type="checkbox"] {
+            transform: scale(1.2);
+            cursor: pointer;
+        }
+
+        .checkbox-container label {
+            font-size: 0.9rem;
+            cursor: pointer;
+            color: #333;
         }
 
         /* Modal Styles */
@@ -406,6 +463,17 @@
             font-size: 1.2rem;
         }
 
+        .unsaved-changes {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 10px 20px;
+            margin: 20px 30px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .controls {
                 flex-direction: column;
@@ -419,6 +487,11 @@
             .filter-buttons {
                 justify-content: center;
                 flex-wrap: wrap;
+            }
+
+            .download-section {
+                flex-direction: column;
+                align-items: stretch;
             }
 
             .modal-content {
@@ -446,6 +519,10 @@
             <input type="file" id="fileInput" accept=".zip" style="display: none;">
         </div>
 
+        <div id="unsavedChanges" class="unsaved-changes">
+            ⚠️ You have unsaved changes. Remember to download your updated data.
+        </div>
+
         <div id="controls" class="controls hidden">
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Search articles by title, author, or keywords...">
@@ -454,8 +531,8 @@
             
             <div class="filter-buttons">
                 <button class="filter-btn active" data-filter="all">All Articles</button>
-                <button class="filter-btn" data-filter="included">My Included</button>
-                <button class="filter-btn" data-filter="excluded">My Excluded</button>
+                <button class="filter-btn" data-filter="true">Included (TRUE)</button>
+                <button class="filter-btn" data-filter="false">Excluded (FALSE)</button>
                 <button class="filter-btn" data-filter="unclear">Not Reviewed</button>
             </div>
 
@@ -474,9 +551,15 @@
                 </div>
             </div>
 
-            <button id="downloadBtn" class="btn btn-success">
-                📥 Download XLSX
-            </button>
+            <div class="download-section">
+                <div class="checkbox-container">
+                    <input type="checkbox" id="includeAbstract" checked>
+                    <label for="includeAbstract">Include Abstract</label>
+                </div>
+                <button id="downloadBtn" class="btn btn-success">
+                    📥 Download XLSX
+                </button>
+            </div>
         </div>
 
         <div id="tableContainer" class="table-container hidden">
@@ -523,6 +606,7 @@
         let articlesData = [];
         let filteredData = [];
         let currentFilter = 'all';
+        let hasUnsavedChanges = false;
 
         // DOM Elements
         const dropZone = document.getElementById('dropZone');
@@ -537,6 +621,8 @@
         const modalTitle = document.getElementById('modalTitle');
         const modalAbstract = document.getElementById('modalAbstract');
         const downloadBtn = document.getElementById('downloadBtn');
+        const includeAbstractCheckbox = document.getElementById('includeAbstract');
+        const unsavedChanges = document.getElementById('unsavedChanges');
 
         // Stats elements
         const totalCount = document.getElementById('totalCount');
@@ -622,8 +708,9 @@
                         console.warn('CSV parsing warnings:', results.errors);
                     }
                     
-                    articlesData = results.data.map(row => ({
+                    articlesData = results.data.map((row, index) => ({
                         ...row,
+                        id: index,
                         inclusionStatus: parseInclusionStatus(row.notes || ''),
                         exclusionReason: parseExclusionReason(row.notes || '')
                     }));
@@ -633,6 +720,8 @@
                     updateStats();
                     hideLoading();
                     showControls();
+                    hasUnsavedChanges = false;
+                    updateUnsavedChangesIndicator();
                 }
             });
         }
@@ -644,11 +733,11 @@
             if (!inclusionMatch) return 'unclear';
             
             const inclusionData = inclusionMatch[1];
-            const included = (inclusionData.match(/=>"Include"/g) || []).length;
-            const excluded = (inclusionData.match(/=>"Exclude"/g) || []).length;
+            const included = (inclusionData.match(/=>"Included"/g) || []).length;
+            const excluded = (inclusionData.match(/=>"Excluded"/g) || []).length;
             
-            if (included > excluded) return 'included';
-            if (excluded > included) return 'excluded';
+            if (included > excluded) return 'true';
+            if (excluded > included) return 'false';
             return 'unclear';
         }
 
@@ -683,8 +772,8 @@
 
         function createTableRow(article) {
             const row = document.createElement('tr');
-            row.className = article.inclusionStatus === 'included' ? 'included' : 
-                           article.inclusionStatus === 'excluded' ? 'excluded' : '';
+            row.className = article.inclusionStatus === 'true' ? 'included' : 
+                           article.inclusionStatus === 'false' ? 'excluded' : '';
 
             row.innerHTML = `
                 <td>
@@ -697,9 +786,11 @@
                 <td class="authors-cell" title="${escapeHtml(article.authors || 'No authors')}">${escapeHtml(article.authors || 'No authors')}</td>
                 <td>${article.year || 'N/A'}</td>
                 <td>
-                    <span class="status-badge badge-${article.inclusionStatus}">
-                        ${article.inclusionStatus.charAt(0).toUpperCase() + article.inclusionStatus.slice(1)}
-                    </span>
+                    <select class="status-selector ${article.inclusionStatus}" onchange="updateStatus(${article.id}, this.value)">
+                        <option value="unclear" ${article.inclusionStatus === 'unclear' ? 'selected' : ''}>Not Reviewed</option>
+                        <option value="true" ${article.inclusionStatus === 'true' ? 'selected' : ''}>TRUE (Include)</option>
+                        <option value="false" ${article.inclusionStatus === 'false' ? 'selected' : ''}>FALSE (Exclude)</option>
+                    </select>
                 </td>
                 <td>${escapeHtml(article.exclusionReason || '')}</td>
                 <td>
@@ -711,6 +802,34 @@
             `;
 
             return row;
+        }
+
+        function updateStatus(articleId, newStatus) {
+            const article = articlesData.find(a => a.id === articleId);
+            if (article) {
+                article.inclusionStatus = newStatus;
+                hasUnsavedChanges = true;
+                updateUnsavedChangesIndicator();
+                
+                // Update the row class
+                const row = event.target.closest('tr');
+                row.className = newStatus === 'true' ? 'included' : 
+                               newStatus === 'false' ? 'excluded' : '';
+                
+                // Update the selector class
+                event.target.className = `status-selector ${newStatus}`;
+                
+                // Re-apply filters if necessary
+                if (currentFilter !== 'all') {
+                    handleSearch();
+                }
+                
+                updateStats();
+            }
+        }
+
+        function updateUnsavedChangesIndicator() {
+            unsavedChanges.style.display = hasUnsavedChanges ? 'block' : 'none';
         }
 
         function openAbstract(title, abstract) {
@@ -729,11 +848,11 @@
             highlighted = highlighted.replace(/\b\d+\s*-\s*\d+\b/g, '<span class="highlight-number">$&</span>');
             
             // Highlight section keywords
-const sectionKeywords = {
-  methods: /\b(method|methods|methodology|design|study design|approach|procedure|procedures|technique|techniques|materials|experimental|protocol|protocols|framework|process|implementation|setup|experiment|experiments)\b/gi,
-  results: /\b(result|results|finding|findings|outcome|outcomes|data|analysis|analyses|statistic|statistics|significant|observation|observations|measurement|measurements|evidence|performance|evaluation|yield)\b/gi,
-  conclusion: /\b(conclusion|conclusions|summary|discussion|interpretation|implication|implications|recommend|recommendation|recommendations|suggest|suggestion|suggestions|demonstrate|show|future work|limitation|limitations|remark|remarks|conclude|inferred)\b/gi
-};
+            const sectionKeywords = {
+                methods: /\b(method|methodology|design|study design|approach|procedure|technique)\b/gi,
+                results: /\b(result|finding|outcome|data|analysis|statistic|significant)\b/gi,
+                conclusion: /\b(conclusion|summary|implication|recommend|suggest|demonstrate|show)\b/gi
+            };
             
             Object.entries(sectionKeywords).forEach(([section, regex]) => {
                 highlighted = highlighted.replace(regex, `<span class="highlight-${section}">$&</span>`);
@@ -777,8 +896,8 @@ const sectionKeywords = {
 
         function updateStats() {
             totalCount.textContent = filteredData.length;
-            includedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'included').length;
-            excludedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'excluded').length;
+            includedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'true').length;
+            excludedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'false').length;
         }
 
         function downloadXLSX() {
@@ -787,16 +906,29 @@ const sectionKeywords = {
                 return;
             }
 
+            const includeAbstract = includeAbstractCheckbox.checked;
+
             // Prepare data for export
-            const exportData = articlesData.map(article => ({
-'DOI': article.doi ? `https://doi.org/${article.doi}` : '',
-                'URL': article.url || '',
-                'Title': article.title || '',
-                'Authors': article.authors || '',
-                'Year': article.year || '',
-                'Included?': article.inclusionStatus || '',
-                'Exclusion Reason': article.exclusionReason || '',
-            }));
+            const exportData = articlesData.map(article => {
+                const baseData = {
+                    'Title': article.title || '',
+                    'Authors': article.authors || '',
+                    'Year': article.year || '',
+                    'Journal': article.journal || '',
+                    'DOI': article.doi || '',
+                    'Include': article.inclusionStatus === 'true' ? 'TRUE' : 
+                              article.inclusionStatus === 'false' ? 'FALSE' : '',
+                    'Exclusion Reason': article.exclusionReason || '',
+                    'Keywords': article.keywords || '',
+                    'URL': article.url || ''
+                };
+
+                if (includeAbstract) {
+                    baseData['Abstract'] = article.abstract || '';
+                }
+
+                return baseData;
+            });
 
             // Create workbook
             const wb = XLSX.utils.book_new();
@@ -816,8 +948,13 @@ const sectionKeywords = {
             XLSX.utils.book_append_sheet(wb, ws, "Articles");
             
             // Download file
-            const fileName = `rayyan_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+            const abstractSuffix = includeAbstract ? '_with_abstract' : '_no_abstract';
+            const fileName = `rayyan_export_${new Date().toISOString().split('T')[0]}${abstractSuffix}.xlsx`;
             XLSX.writeFile(wb, fileName);
+            
+            // Mark as saved
+            hasUnsavedChanges = false;
+            updateUnsavedChangesIndicator();
         }
 
         function escapeHtml(text) {
@@ -854,8 +991,9 @@ const sectionKeywords = {
             tableContainer.classList.remove('hidden');
         }
 
-        // Make openAbstract available globally
+        // Make functions available globally
         window.openAbstract = openAbstract;
+        window.updateStatus = updateStatus;
     </script>
 </body>
 </html>
