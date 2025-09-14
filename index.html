@@ -973,18 +973,16 @@
             // Prepare data for export
             const exportData = articlesData.map(article => {
                 const baseData = {
+                    'DOI': article.doi || '',
+                    'URL': article.url || '',
                     'Title': article.title || '',
                     'Authors': article.authors || '',
                     'Year': article.year || '',
-                    'Journal': article.journal || '',
-                    'DOI': article.doi || '',
-                    'PDF Found': article.pdfFound === 'found' ? 'FOUND' : 
-                                article.pdfFound === 'not-found' ? 'NOT FOUND' : 'TO SEARCH',
+                    'PDF Found': article.pdfFound === 'found' ? 'TRUE' : 
+                                article.pdfFound === 'not-found' ? 'FALSE' : 'FALSE',
                     'Include': article.inclusionStatus === 'true' ? 'TRUE' : 
                               article.inclusionStatus === 'false' ? 'FALSE' : '',
                     'Exclusion Reason': article.exclusionReason || '',
-                    'Keywords': article.keywords || '',
-                    'URL': article.url || ''
                 };
 
                 if (includeAbstract) {
