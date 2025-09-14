@@ -256,6 +256,25 @@
             color: #856404;
         }
 
+        .pdf-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .pdf-found {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .pdf-not-found {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
         .status-selector {
             padding: 6px 12px;
             border: 2px solid #dee2e6;
@@ -510,9 +529,6 @@
         <div class="header">
             <h1>Rayyan CSV Processor</h1>
             <p>Upload your Rayyan ZIP export to analyze and manage your systematic review data</p>
-            <p style="font-size: 0.9rem; opacity: 0.8; margin-top: 10px;">
-                ✨ Features: PDF Detection • Editable Status • TRUE/FALSE Format • Flexible Export
-            </p>
         </div>
 
         <div id="dropZone" class="drop-zone">
@@ -552,6 +568,10 @@
                     <div class="stat-number" id="excludedCount">0</div>
                     <div class="stat-label">Excluded</div>
                 </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="pdfFoundCount">0</div>
+                    <div class="stat-label">PDFs Found</div>
+                </div>
             </div>
 
             <div class="download-section">
@@ -573,6 +593,7 @@
                         <th>Title</th>
                         <th>Authors</th>
                         <th>Year</th>
+                        <th>PDF Found</th>
                         <th>Status</th>
                         <th>Exclusion Reason</th>
                         <th>Abstract</th>
@@ -631,6 +652,7 @@
         const totalCount = document.getElementById('totalCount');
         const includedCount = document.getElementById('includedCount');
         const excludedCount = document.getElementById('excludedCount');
+        const pdfFoundCount = document.getElementById('pdfFoundCount');
 
         // File handling
         dropZone.addEventListener('click', () => fileInput.click());
@@ -715,7 +737,8 @@
                         ...row,
                         id: index,
                         inclusionStatus: parseInclusionStatus(row.notes || ''),
-                        exclusionReason: parseExclusionReason(row.notes || '')
+                        exclusionReason: parseExclusionReason(row.notes || ''),
+                        pdfFound: checkPDFAvailability(row)
                     }));
 
                     filteredData = [...articlesData];
@@ -727,6 +750,47 @@
                     updateUnsavedChangesIndicator();
                 }
             });
+        }
+
+        function checkPDFAvailability(row) {
+            // Check multiple possible fields that might indicate PDF availability
+            const pdfFields = [
+                'pdf', 'PDF', 'fulltext', 'full_text', 'full-text',
+                'attachment', 'attachments', 'file', 'files',
+                'pdf_link', 'pdf_url', 'document', 'has_pdf'
+            ];
+            
+            for (const field of pdfFields) {
+                const value = row[field];
+                if (value) {
+                    // Check if the value indicates a PDF is available
+                    if (typeof value === 'boolean') {
+                        return value;
+                    }
+                    if (typeof value === 'string') {
+                        const lowerValue = value.toLowerCase();
+                        // If it contains "true", "yes", "available", or looks like a URL/path
+                        if (lowerValue.includes('true') || 
+                            lowerValue.includes('yes') || 
+                            lowerValue.includes('available') ||
+                            lowerValue.includes('.pdf') ||
+                            lowerValue.startsWith('http') ||
+                            (lowerValue !== 'false' && lowerValue !== 'no' && lowerValue !== '' && lowerValue !== 'null')) {
+                            return true;
+                        }
+                    }
+                    if (typeof value === 'number' && value > 0) {
+                        return true;
+                    }
+                }
+            }
+            
+            // Check if DOI or URL exists (might indicate PDF availability)
+            if (row.doi && row.doi.trim()) {
+                return true; // Assume DOI means PDF is potentially available
+            }
+            
+            return false; // Default to not found
         }
 
         function parseInclusionStatus(notes) {
@@ -788,6 +852,11 @@
                 <td class="title-cell" title="${escapeHtml(article.title || 'No title')}">${escapeHtml(article.title || 'No title')}</td>
                 <td class="authors-cell" title="${escapeHtml(article.authors || 'No authors')}">${escapeHtml(article.authors || 'No authors')}</td>
                 <td>${article.year || 'N/A'}</td>
+                <td>
+                    <span class="pdf-badge ${article.pdfFound ? 'pdf-found' : 'pdf-not-found'}">
+                        ${article.pdfFound ? '✅ Found' : '❌ Not Found'}
+                    </span>
+                </td>
                 <td>
                     <select class="status-selector ${article.inclusionStatus}" onchange="updateStatus(${article.id}, this.value)">
                         <option value="unclear" ${article.inclusionStatus === 'unclear' ? 'selected' : ''}>Not Reviewed</option>
@@ -901,6 +970,7 @@
             totalCount.textContent = filteredData.length;
             includedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'true').length;
             excludedCount.textContent = articlesData.filter(a => a.inclusionStatus === 'false').length;
+            pdfFoundCount.textContent = articlesData.filter(a => a.pdfFound === true).length;
         }
 
         function downloadXLSX() {
@@ -919,6 +989,7 @@
                     'Year': article.year || '',
                     'Journal': article.journal || '',
                     'DOI': article.doi || '',
+                    'PDF Found': article.pdfFound ? 'TRUE' : 'FALSE',
                     'Include': article.inclusionStatus === 'true' ? 'TRUE' : 
                               article.inclusionStatus === 'false' ? 'FALSE' : '',
                     'Exclusion Reason': article.exclusionReason || '',
